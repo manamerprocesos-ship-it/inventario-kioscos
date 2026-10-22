@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2/dist/iife/reader/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --papel:#EEF2F1; --tarjeta:#FFFFFF; --tinta:#13302E; --suave:#5A6E6B; --linea:#CBD6D3;
+  --laser:#E0362F; --ok:#1E7A4C; --aviso:#9A5B00; --falta:#B3261E; --foco:#2A7D72;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --papel:#0F1A19; --tarjeta:#172524; --tinta:#E3ECEA; --suave:#9AB0AC; --linea:#2C3F3D;
+    --laser:#FF5A4F; --ok:#4CC38A; --aviso:#F0A53A; --falta:#FF6B60; --foco:#7FD1C3;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.45 'Barlow',system-ui,sans-serif}
+.barra{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:2px solid var(--tinta)}
+.marca{font:700 21px/1 'Barlow Condensed',sans-serif}
+.quien{margin-left:auto;color:var(--suave);font-size:14px;text-align:right}
+main{max-width:1000px;margin:0 auto;padding:16px 16px 48px}
+h1{font:700 32px/1.05 'Barlow Condensed',sans-serif;margin:8px 0 4px}
+h2{font:700 21px/1.2 'Barlow Condensed',sans-serif;margin:28px 0 8px}
+p{margin:0 0 8px}
+.nota{color:var(--suave);font-size:14px}
+label{display:block;font-weight:500;font-size:14px;color:var(--suave);margin-bottom:12px}
+input,select,textarea{font:inherit;color:var(--tinta);background:var(--tarjeta);border:1.5px solid var(--linea);border-radius:6px;padding:10px 12px;width:100%;margin-top:4px}
+textarea{min-height:200px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid var(--foco);outline-offset:1px}
+button,.btn{font:600 16px 'Barlow',sans-serif;border-radius:6px;padding:10px 16px;cursor:pointer;border:1.5px solid var(--tinta);background:transparent;color:var(--tinta);display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.primario{background:var(--tinta);color:var(--papel)}
+.peligro{border-color:var(--falta);color:var(--falta)}
+.enlace{border:none;padding:4px 6px;text-decoration:underline}
+button:disabled{opacity:.5;cursor:wait}
+.oculto{display:none!important}
+.acciones{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+
+/* Login */
+#vLogin{max-width:380px;margin:40px auto}
+
+/* Lector */
+.lector{background:var(--tarjeta);border:1.5px solid var(--linea);border-radius:10px;padding:16px;margin-top:12px}
+.fila-lector{display:flex;gap:8px;align-items:stretch}
+#codigo{font:600 26px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.04em;padding:12px 14px;margin:0}
+.btn-foto{margin:0;flex:none;display:flex;align-items:center;gap:6px;border:1.5px solid var(--tinta);border-radius:6px;padding:0 14px;color:var(--tinta);font:600 16px 'Barlow';cursor:pointer}
+.modos{display:flex;margin-bottom:14px;border:1.5px solid var(--tinta);border-radius:8px;overflow:hidden}
+.modos button{flex:1;border:none;border-radius:0;padding:10px 6px;font-size:15px;justify-content:center}
+.modos button+button{border-left:1.5px solid var(--tinta)}
+.modos button.activo{background:var(--tinta);color:var(--papel)}
+#camara{position:relative;width:100%;max-width:520px;margin:0 auto 6px;border-radius:8px;overflow:hidden;background:#000;min-height:220px}
+#video{width:100%;display:block}
+.guia{position:absolute;left:10%;right:10%;top:30%;bottom:30%;border:2px solid rgba(255,255,255,.85);border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
+.guia::after{content:"";position:absolute;left:6%;right:6%;top:50%;height:2px;background:var(--laser);box-shadow:0 0 8px var(--laser)}
+#camara.leido .guia{border-color:#4CC38A}
+#camMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#fff;font-size:15px}
+#zonaCamara .nota{margin-bottom:12px}
+#prevInv{white-space:pre-line}
+.laser{height:3px;background:var(--laser);margin:10px 0 14px;transform-origin:left;transform:scaleX(.12);transition:transform .25s ease-out;border-radius:2px}
+.lector:focus-within .laser{transform:scaleX(1)}
+.fila-cant{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.fila-cant label{margin:0}
+#cantidad{width:110px;font:600 22px 'Barlow Condensed'}
+.check{display:flex;align-items:center;gap:8px;color:var(--tinta)}
+.check input{width:auto;margin:0}
+
+.ultimo{margin-top:14px;padding:14px 16px;border-left:6px solid var(--ok);background:var(--tarjeta);border-radius:0 10px 10px 0;display:flex;gap:16px;align-items:center}
+.ultimo.fuera{border-left-color:var(--aviso)}
+.ultimo .num{font:700 56px/1 'Barlow Condensed',sans-serif;min-width:70px;text-align:center}
+.ultimo .num small{display:block;font:500 13px 'Barlow';color:var(--suave)}
+.ultimo .desc{font-weight:600;font-size:18px}
+
+.resumen{display:flex;gap:24px;flex-wrap:wrap;margin-top:6px}
+.resumen b{font:700 24px 'Barlow Condensed'}
+
+.lista{list-style:none;padding:0;margin:0;border-top:1px solid var(--linea)}
+.lista li{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--linea)}
+.lista .d{font-weight:600}
+.lista .m{grid-column:1;color:var(--suave);font-size:13px}
+.lista .c{grid-row:1 / span 2;grid-column:2;font:700 24px 'Barlow Condensed'}
+.lista .x{grid-row:1 / span 2;grid-column:3}
+.lista li.pendiente{opacity:.6}
+.lista li.fallo .m{color:var(--falta);font-weight:600}
+.lista li.fuera .d{color:var(--aviso)}
+
+.vacio{padding:32px 20px;border:1.5px dashed var(--linea);border-radius:10px;text-align:center;margin-top:24px}
+
+/* Admin */
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--tinta);margin-top:8px}
+.tabs button{border:none;border-radius:6px 6px 0 0;padding:10px 16px}
+.tabs button.activo{background:var(--tinta);color:var(--papel)}
+.tabla-wrap{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:15px;background:var(--tarjeta)}
+th,td{padding:8px 10px;border-bottom:1px solid var(--linea);text-align:left;white-space:nowrap}
+th{font:600 14px 'Barlow';color:var(--suave)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.desc{white-space:normal;min-width:200px}
+.chip{display:inline-block;padding:2px 8px;border-radius:20px;border:1.5px solid currentColor;font-size:13px;font-weight:600}
+.e-OK{color:var(--ok)} .e-Faltante,.e-No{color:var(--falta)} .e-Sobrante{color:var(--aviso)}
+.avance{width:120px;height:8px;background:var(--linea);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.avance i{display:block;height:100%;background:var(--ok)}
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--linea);border:1px solid var(--linea);border-radius:10px;overflow:hidden;margin:12px 0}
+.cifras div{background:var(--tarjeta);padding:12px 14px}
+.cifras b{display:block;font:700 30px/1.1 'Barlow Condensed'}
+.cifras span{color:var(--suave);font-size:14px}
+.filtros{display:flex;gap:8px;flex-wrap:wrap}
+.filtros select,.filtros input{width:auto;flex:1 1 200px}
+
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(120px);background:var(--tinta);color:var(--papel);padding:12px 18px;border-radius:8px;max-width:92vw;transition:transform .2s;white-space:pre-line;z-index:10}
+.toast.ver{transform:translateX(-50%) translateY(0)}
+.toast.error{background:var(--falta);color:#fff}
+#lector-oculto{position:absolute;left:-9999px;width:320px;height:240px}
+@media (prefers-reduced-motion: reduce){ .laser,.toast{transition:none} }
+</style>
+</head>
+<body>
+<header class="barra">
+  <div class="marca">Inventario de kioscos</div>
+  <div id="quien" class="quien"></div>
+  <button id="btnSalir" class="enlace oculto" onclick="salir()">Salir</button>
+</header>
+
+<main>
+  <!-- Ingreso -->
+  <section id="vLogin">
+    <h1>Ingresa con tu PIN</h1>
+    <label>PIN<input id="pin" type="password" inputmode="numeric" autocomplete="off"></label>
+    <label>Tu nombre <span class="nota">(personal de tienda)</span><input id="nombre" autocomplete="name"></label>
+    <button class="primario" id="btnEntrar" onclick="entrar()">Entrar</button>
+    <p id="msgLogin" class="nota" style="margin-top:12px"></p>
+  </section>
+
+  <!-- Tienda -->
+  <section id="vTienda" class="oculto">
+    <div id="sinInv" class="vacio oculto">
+      <h2 style="margin-top:0">No hay inventario asignado</h2>
+      <p>Control de Inventarios debe cargar el inventario de tu kiosko antes de empezar.</p>
+      <button onclick="cargarTienda()">Revisar de nuevo</button>
+    </div>
+    <div id="conInv" class="oculto">
+      <h1 id="tTitulo"></h1>
+      <p id="tSub" class="nota"></p>
+      <div class="resumen">
+        <div><b id="rProd">0</b> <span class="nota">productos contados en el kiosko</span></div>
+        <div><b id="rUni">0</b> <span class="nota">unidades</span></div>
+      </div>
+      <p id="equipo" class="nota" style="margin-top:6px"></p>
+
+      <div class="lector">
+        <div class="modos" role="group" aria-label="Forma de leer los códigos">
+          <button data-modo="camara" onclick="cambiarModo('camara')">Cámara en vivo</button>
+          <button data-modo="foto" onclick="cambiarModo('foto')">Foto</button>
+          <button data-modo="pistola" onclick="cambiarModo('pistola')">Pistola o teclado</button>
+        </div>
+        <div id="zonaCamara" class="oculto">
+          <div id="camara"><video id="video" playsinline muted autoplay></video><div class="guia"></div><div id="camMsg" class="oculto"></div></div>
+          <p class="nota">Pon el código de barras dentro del recuadro, sin mover el producto. El mismo código no se vuelve a contar hasta 3 segundos después; para varias unidades usa Cantidad.</p>
+        </div>
+        <label for="codigo" style="margin-bottom:4px">Código o código de barras</label>
+        <div class="fila-lector">
+          <input id="codigo" autocomplete="off" autocapitalize="characters" enterkeyhint="done" placeholder="Pistolea o escribe">
+          <label id="btnFoto" class="btn-foto oculto" title="Tomar foto a la etiqueta">📷 Tomar foto
+            <input id="foto" type="file" accept="image/*" capture="environment" hidden>
+          </label>
+        </div>
+        <div class="laser"></div>
+        <div class="fila-cant">
+          <label>Cantidad<input id="cantidad" type="number" min="1" step="1" value="1" inputmode="numeric"></label>
+          <label class="check"><input id="pedirCant" type="checkbox"> Pedir cantidad después de leer</label>
+          <button class="primario" onclick="registrarManual()">Registrar</button>
+        </div>
+        <div id="ultimo" class="ultimo oculto">
+          <div class="num"><span id="uNum"></span><small>en total</small></div>
+          <div><div id="uDesc" class="desc"></div><div id="uCod" class="nota"></div></div>
+        </div>
+      </div>
+
+      <h2>Últimos registros</h2>
+      <ul id="lista" class="lista"></ul>
+      <div class="acciones"><button onclick="terminar()">Terminé el conteo</button></div>
+    </div>
+  </section>
+
+  <!-- Control de Inventarios -->
+  <section id="vAdmin" class="oculto">
+    <nav class="tabs">
+      <button data-tab="tInvs" class="activo" onclick="tab('tInvs')">Inventarios</button>
+      <button data-tab="tCargar" onclick="tab('tCargar')">Cargar inventario</button>
+    </nav>
+
+    <div id="tInvs">
+      <div class="acciones"><button onclick="cargarLista()">Actualizar</button></div>
+      <div id="listaInvs"></div>
+    </div>
+
+    <div id="tCargar" class="oculto">
+      <h2>Cargar inventario del sistema</h2>
+      <p class="nota">Copia desde Excel las columnas Código, Código de barras, Descripción y Cantidad (la descripción es opcional) y pégalas aquí. El encabezado se ignora.</p>
+      <label>Tienda<select id="selTienda"></select></label>
+      <label>Subir archivo de Excel <span class="nota">(recomendado: los códigos de barras llegan completos)</span>
+        <input id="archivoInv" type="file" accept=".xlsx,.xls,.csv"></label>
+      <label>O pega los productos<textarea id="txtInv" placeholder="Pega aquí las filas copiadas de Excel"></textarea></label>
+      <p id="prevInv" class="nota"></p>
+      <button class="primario" id="btnCargar" onclick="cargarInv()">Cargar inventario</button>
+    </div>
+
+    <div id="tRep" class="oculto">
+      <div class="acciones"><button onclick="tab('tInvs')">← Inventarios</button></div>
+      <h1 id="repTitulo"></h1>
+      <p id="repSub" class="nota"></p>
+      <div id="repCifras" class="cifras"></div>
+      <div class="acciones">
+        <button onclick="refrescarReporte()">Actualizar</button>
+        <button onclick="exportar()" id="btnExportar">Crear hoja de reporte</button>
+        <a id="lnkHoja" class="btn oculto" target="_blank" rel="noopener">Abrir hoja de reporte</a>
+        <button class="peligro" id="btnCerrar" onclick="cerrar()">Cerrar inventario</button>
+      </div>
+      <div class="filtros">
+        <select id="fEstado" onchange="pintarTabla()">
+          <option value="dif">Con diferencia</option>
+          <option value="todos">Todos</option>
+          <option value="No contado">No contados</option>
+          <option value="Faltante">Faltantes</option>
+          <option value="Sobrante">Sobrantes</option>
+          <option value="OK">Cuadrados</option>
+        </select>
+        <input id="fBuscar" placeholder="Buscar código o descripción" oninput="pintarTabla()">
+      </div>
+      <div class="tabla-wrap"><table id="tablaRep"></table></div>
+      <div id="repExtras"></div>
+      <div id="repResp"></div>
+    </div>
+  </section>
+</main>
+
+<div id="lector-oculto"></div>
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+const S = { pin:'', rol:'', tienda:'', nombre:'', inv:null, mapa:{}, totales:{}, tiendas:[], rep:null, repId:null, timer:null, pendiente:null, lector:null };
+const $ = id => document.getElementById(id);
+
+// Solo para la copia publicada fuera de Apps Script (GitHub Pages): pega aquí la URL de tu aplicación web (termina en /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbw7d5aObfwRvkXE7Y2WlPo1HN0ZvS-UI_XsGN4e_f0PUZNW0csJ5n-tS9dpmRce5oTy/exec';
+
+function llamar(fn, ...args){
+  if (window.google && google.script && google.script.run){
+    return new Promise((ok, mal) => google.script.run.withSuccessHandler(ok).withFailureHandler(mal)[fn](...args));
+  }
+  return fetch(API_URL, { method:'POST', body: JSON.stringify({ fn, args }) })
+    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error(r.error); return r.data; })
+    .catch(e => { throw new Error(e.message === 'Failed to fetch' ? 'Sin conexión con el servidor. Revisa tu internet.' : e.message); });
+}
+function clave(x){ return String(x == null ? '' : x).trim().toUpperCase().replace(/\s+/g,'').replace(/^0+(?=.)/,''); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function num(n){ return Number(n||0).toLocaleString('es-EC'); }
+
+let toastT;
+function toast(texto, tipo){
+  const t = $('toast'); t.textContent = texto; t.className = 'toast ver' + (tipo === 'error' ? ' error' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', tipo === 'error' ? 6000 : 2500);
+}
+
+let audio;
+function pitido(ok){
+  try{
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = ok ? 1300 : 300; g.gain.value = .08;
+    o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + (ok ? .08 : .3));
+  }catch(e){}
+}
+
+/* ───────── Sesión ───────── */
+function guardarSesion(){ try{ sessionStorage.setItem('invk', JSON.stringify({pin:S.pin, nombre:S.nombre})); }catch(e){} }
+function leerSesion(){ try{ return JSON.parse(sessionStorage.getItem('invk') || 'null'); }catch(e){ return null; } }
+
+async function entrar(guardada){
+  const pin = guardada ? guardada.pin : $('pin').value.trim();
+  const nombre = guardada ? guardada.nombre : $('nombre').value.trim();
+  if (!pin){ $('msgLogin').textContent = 'Escribe tu PIN.'; return; }
+  $('btnEntrar').disabled = true;
+  try{
+    const u = await llamar('login', pin);
+    if (u.rol === 'tienda' && !nombre){ $('msgLogin').textContent = 'Escribe tu nombre: queda registrado en cada conteo.'; return; }
+    Object.assign(S, { pin, rol:u.rol, tienda:u.tienda, nombre: nombre || u.tienda, tiendas: u.tiendas || [] });
+    guardarSesion();
+    iniciar();
+  }catch(e){ $('msgLogin').textContent = e.message; }
+  finally{ $('btnEntrar').disabled = false; }
+}
+
+function iniciar(){
+  $('vLogin').classList.add('oculto');
+  $('btnSalir').classList.remove('oculto');
+  $('quien').textContent = S.rol === 'admin' ? S.tienda : S.nombre + ', ' + S.tienda;
+  if (S.rol === 'tienda'){ $('vTienda').classList.remove('oculto'); cargarTienda(); }
+  else {
+    $('vAdmin').classList.remove('oculto');
+    $('selTienda').innerHTML = S.tiendas.map(t => `<option>${esc(t)}</option>`).join('');
+    cargarLista();
+  }
+}
+
+function salir(){ try{ sessionStorage.removeItem('invk'); }catch(e){} location.reload(); }
+
+/* ───────── Tienda ───────── */
+async function cargarTienda(){
+  try{
+    clearInterval(S.sync);
+    const r = await llamar('abrirTienda', S.pin, S.nombre);
+    if (!r.inv){ apagarCamara(); $('sinInv').classList.remove('oculto'); $('conInv').classList.add('oculto'); return; }
+    $('sinInv').classList.add('oculto'); $('conInv').classList.remove('oculto');
+    S.inv = r.inv; S.totales = r.totales || {}; S.mapa = {};
+    r.productos.forEach(p => {
+      const o = { codigo:p[0], barras:p[1], desc:p[2] };
+      S.mapa[clave(p[0])] = o;
+      if (p[1]) S.mapa[clave(p[1])] = o;
+    });
+    $('tTitulo').textContent = 'Inventario de ' + S.tienda;
+    pintarSub();
+    $('lista').innerHTML = '';
+    r.ultimos.slice().reverse().forEach(x => rellenarLinea(agregarLinea(x), x));
+    resumen();
+    pintarEquipo(r.equipo);
+    cambiarModo(S.modo || modoGuardado());
+    S.sync = setInterval(sincronizar, 20000);
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+/* Varias personas en el mismo kiosko */
+function pintarEquipo(eq){
+  $('equipo').textContent = eq && eq.length
+    ? 'Contando en este kiosko: ' + eq.map(p => `${p.nombre} (${num(p.unidades)} u.)`).join(', ')
+    : '';
+}
+
+async function sincronizar(){
+  if (!S.inv || document.hidden) return;
+  try{
+    const r = await llamar('sincronizar', S.pin, S.inv.id);
+    if (r.estado === 'CERRADO'){
+      clearInterval(S.sync);
+      toast('Control de Inventarios cerró este inventario.', 'error');
+      cargarTienda();
+      return;
+    }
+    S.totales = r.totales; resumen(); pintarEquipo(r.equipo);
+    if (r.estado !== S.inv.estado){ S.inv.estado = r.estado; pintarSub(); }
+  }catch(e){}
+}
+
+/* Modo de lectura: cada celular recuerda el último que eligió */
+function modoGuardado(){
+  try{ return localStorage.getItem('invk-modo') || 'camara'; }catch(e){ return 'camara'; }
+}
+
+async function cambiarModo(m){
+  S.modo = m;
+  try{ localStorage.setItem('invk-modo', m); }catch(e){}
+  document.querySelectorAll('.modos button').forEach(b => b.classList.toggle('activo', b.dataset.modo === m));
+  $('zonaCamara').classList.toggle('oculto', m !== 'camara');
+  $('btnFoto').classList.toggle('oculto', m !== 'foto');
+  $('codigo').placeholder = m === 'pistola' ? 'Pistolea o escribe' : 'O escribe el código';
+  if (m === 'camara') await encenderCamara(); else await apagarCamara();
+  if (m === 'pistola') $('codigo').focus();
+}
+
+function opcionesLector(){
+  const F = Html5QrcodeSupportedFormats;
+  return {
+    verbose:false,
+    formatsToSupport:[F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE],
+    experimentalFeatures:{ useBarCodeDetectorIfSupported:true }
+  };
+}
+
+async function encenderCamara(){
+  if (S.camActiva) return;
+  $('camMsg').classList.add('oculto');
+  try{
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('sin-camara');
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } }
+    });
+    const v = $('video');
+    v.srcObject = S.stream;
+    await v.play();
+    const pista = S.stream.getVideoTracks()[0];
+    try{
+      const cap = pista.getCapabilities ? pista.getCapabilities() : {};
+      if (cap.focusMode && cap.focusMode.indexOf('continuous') >= 0) await pista.applyConstraints({ advanced:[{ focusMode:'continuous' }] });
+    }catch(e){}
+
+    // Android con Chrome trae su propio lector; iPhone usa ZXing
+    S.detector = null;
+    if ('BarcodeDetector' in window){
+      try{ if ((await BarcodeDetector.getSupportedFormats()).length) S.detector = new BarcodeDetector(); }catch(e){}
+    }
+    S.camActiva = true; S.camPausa = false;
+    bucleCamara();
+  }catch(e){
+    S.camActiva = false;
+    const enAppsScript = !!(window.google && google.script);
+    $('camMsg').textContent = enAppsScript
+      ? 'Dentro de Google Apps Script la cámara en vivo está bloqueada. Abre la app desde el link de GitHub Pages, o usa Foto.'
+      : 'No se pudo abrir la cámara. Revisa que el navegador tenga permiso de cámara para esta página, o usa Foto.';
+    $('camMsg').classList.remove('oculto');
+  }
+}
+
+async function apagarCamara(){
+  S.camActiva = false; S.camPausa = false;
+  if (S.stream){ S.stream.getTracks().forEach(t => t.stop()); S.stream = null; }
+  const v = $('video'); if (v) v.srcObject = null;
+}
+
+async function bucleCamara(){
+  if (!S.camActiva) return;
+  const v = $('video');
+  if (!S.camPausa && !S.leyendoCuadro && v.readyState >= 2){
+    S.leyendoCuadro = true;
+    try{
+      const texto = await leerCuadro(v);
+      if (texto) leidoCamara(String(texto).trim());
+    }catch(e){}
+    S.leyendoCuadro = false;
+  }
+  setTimeout(bucleCamara, 120);
+}
+
+// Lee solo la franja del recuadro: es más rápido y evita leer códigos vecinos
+async function leerCuadro(v){
+  const W = v.videoWidth, H = v.videoHeight;
+  if (!W || !H) return null;
+  const cw = Math.round(W * .8), ch = Math.round(H * .4);
+  const k = Math.min(1, 1280 / cw);
+  const c = S.lienzo || (S.lienzo = document.createElement('canvas'));
+  c.width = Math.round(cw * k); c.height = Math.round(ch * k);
+  const ctx = c.getContext('2d', { willReadFrequently:true });
+  ctx.drawImage(v, (W - cw) / 2, (H - ch) / 2, cw, ch, 0, 0, c.width, c.height);
+
+  if (S.detector){
+    const r = await S.detector.detect(c);
+    return r.length ? r[0].rawValue : null;
+  }
+  const Z = window.ZXingWASM;
+  const leerZ = Z && (Z.readBarcodes || Z.readBarcodesFromImageData);
+  if (!leerZ) return null;
+  const r = await leerZ(ctx.getImageData(0, 0, c.width, c.height), { tryHarder:false, maxNumberOfSymbols:1 });
+  const ok = (r || []).find(x => x.text && x.isValid !== false);
+  return ok ? ok.text : null;
+}
+
+function leidoCamara(texto){
+  if (S.camPausa || !texto) return;
+  const ahora = Date.now();
+  if (texto === S.camUltimo && ahora - S.camUltimoT < 3000) return;
+  S.camUltimo = texto; S.camUltimoT = ahora;
+  S.camPausa = true;
+  $('camara').classList.add('leido');
+  $('codigo').value = texto;
+  leer(texto, 'Cámara');
+  if (!S.pendiente) setTimeout(reanudarCamara, 700);
+}
+
+function reanudarCamara(){
+  if (!S.camPausa) return;
+  S.camPausa = false;
+  S.camUltimoT = Date.now();
+  $('camara').classList.remove('leido');
+}
+
+function pintarSub(){
+  const terminado = S.inv.estado === 'CONTEO TERMINADO';
+  $('tSub').textContent = `${S.inv.id}, cargado el ${S.inv.creado}` + (terminado ? '. Conteo marcado como terminado; aún puedes agregar productos.' : '');
+}
+
+function resumen(){
+  let prod = 0, uni = 0;
+  Object.keys(S.totales).forEach(k => { if (S.totales[k] > 0){ uni += S.totales[k]; prod++; } });
+  $('rProd').textContent = num(prod); $('rUni').textContent = num(uni);
+}
+
+$('codigo').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); leer($('codigo').value, 'Lector o teclado'); }
+});
+$('cantidad').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); registrarManual(); }
+});
+
+function leer(valor, metodo){
+  valor = String(valor || '').trim();
+  if (!valor) return;
+  if ($('pedirCant').checked){
+    S.pendiente = { leido:valor, metodo };
+    const p = S.mapa[clave(valor)];
+    mostrarUltimo(p ? p.desc : 'No está en el inventario del sistema', valor, S.totales[clave(p ? p.codigo : valor)] || 0, !p);
+    $('cantidad').select(); $('cantidad').focus();
+    return;
+  }
+  enviar(valor, $('cantidad').value, metodo);
+}
+
+function registrarManual(){
+  if (S.pendiente){ const p = S.pendiente; S.pendiente = null; enviar(p.leido, $('cantidad').value, p.metodo); }
+  else leer($('codigo').value, 'Lector o teclado');
+  if (S.camPausa && !S.pendiente) setTimeout(reanudarCamara, 300);
+}
+
+function limpiarEntrada(){
+  $('codigo').value = ''; $('cantidad').value = 1;
+  if (S.modo === 'pistola') $('codigo').focus(); else $('codigo').blur();
+}
+
+function enviar(leido, cant, metodo){
+  cant = Number(cant);
+  if (!(cant > 0)){ toast('La cantidad debe ser mayor a 0.', 'error'); $('cantidad').focus(); return; }
+  const p = S.mapa[clave(leido)];
+  if (!p && !confirm(`El código ${leido} no está en el inventario del sistema.\n¿Registrarlo de todas formas?`)){ limpiarEntrada(); return; }
+
+  const li = agregarLinea({ leido, codigo: p ? p.codigo : leido, desc: p ? p.desc : 'No está en el sistema', cant, enSistema: !!p, hora:'Guardando…', responsable:S.nombre });
+  li.classList.add('pendiente');
+  limpiarEntrada();
+
+  llamar('registrar', S.pin, S.inv.id, S.nombre, leido, cant, metodo).then(r => {
+    S.totales[clave(r.codigo)] = r.total;
+    rellenarLinea(li, r);
+    mostrarUltimo(r.desc, r.codigo, r.total, !r.enSistema);
+    resumen(); pitido(true);
+  }).catch(e => {
+    li.classList.remove('pendiente'); li.classList.add('fallo');
+    li.querySelector('.m').textContent = 'No se guardó: ' + e.message;
+    toast(e.message, 'error'); pitido(false);
+  });
+}
+
+function agregarLinea(o){
+  const li = document.createElement('li');
+  if (!o.enSistema) li.classList.add('fuera');
+  li.innerHTML = `<span class="d"></span><span class="c"></span><span class="x"></span><span class="m"></span>`;
+  li.querySelector('.d').textContent = o.desc;
+  li.querySelector('.c').textContent = '×' + o.cant;
+  li.querySelector('.m').textContent = `${o.codigo || o.leido}  ${o.hora}`;
+  $('lista').prepend(li);
+  while ($('lista').children.length > 50) $('lista').lastChild.remove();
+  return li;
+}
+
+function rellenarLinea(li, r){
+  li.classList.remove('pendiente');
+  li.dataset.id = r.idConteo;
+  li.querySelector('.m').textContent = `${r.codigo}  ${r.hora}  ${r.responsable || ''}`;
+  li.querySelector('.x').innerHTML = `<button class="enlace" data-quitar>Quitar</button>`;
+}
+
+$('lista').addEventListener('click', async e => {
+  if (!e.target.matches('[data-quitar]')) return;
+  const li = e.target.closest('li');
+  if (!confirm('¿Quitar este registro?')) return;
+  e.target.disabled = true;
+  try{
+    const r = await llamar('deshacer', S.pin, S.inv.id, li.dataset.id);
+    S.totales[clave(r.codigo)] = r.total;
+    li.remove(); resumen(); toast('Registro quitado');
+  }catch(err){ e.target.disabled = false; toast(err.message, 'error'); }
+  $('codigo').focus();
+});
+
+function mostrarUltimo(desc, codigo, total, fuera){
+  $('ultimo').classList.remove('oculto');
+  $('ultimo').classList.toggle('fuera', !!fuera);
+  $('uDesc').textContent = desc;
+  $('uCod').textContent = codigo;
+  $('uNum').textContent = num(total);
+}
+
+/* Foto de la etiqueta */
+async function reducir(file, max){
+  const img = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  if (k === 1) return file;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
+  return new File([blob], 'foto.jpg', { type:'image/jpeg' });
+}
+
+// Prueba tres lectores, uno tras otro, hasta que alguno reconozca el código
+async function leerFoto(file){
+  const fallos = [];
+  const chica = await reducir(file, 2000).catch(() => file);
+
+  // 1) Lector del propio celular (Android con Chrome)
+  if ('BarcodeDetector' in window){
+    try{
+      const r = await new BarcodeDetector().detect(await createImageBitmap(chica));
+      if (r.length && r[0].rawValue) return r[0].rawValue;
+      fallos.push('nativo: sin código');
+    }catch(e){ fallos.push('nativo: ' + e.message); }
+  }
+
+  // 2) ZXing, el lector más fuerte para fotos de códigos de barras
+  const Z = window.ZXingWASM;
+  const leerZ = Z && (Z.readBarcodes || Z.readBarcodesFromImageFile);
+  if (leerZ){
+    for (const img of [chica, file]){
+      try{
+        const r = await leerZ(img, { tryHarder:true, maxNumberOfSymbols:1 });
+        const ok = (r || []).find(x => x.text && x.isValid !== false);
+        if (ok) return ok.text;
+      }catch(e){ fallos.push('zxing: ' + e.message); break; }
+    }
+    fallos.push('zxing: sin código');
+  } else fallos.push('zxing: no cargó');
+
+  // 3) html5-qrcode
+  try{
+    if (!S.lector) S.lector = new Html5Qrcode('lector-oculto', opcionesLector());
+    return await S.lector.scanFile(chica, false);
+  }catch(e){ fallos.push('html5: sin código'); }
+
+  throw new Error(fallos.join(' | '));
+}
+
+$('foto').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  toast('Leyendo la etiqueta…');
+  try{
+    const texto = String(await leerFoto(f)).trim();
+    $('codigo').value = texto;
+    leer(texto, 'Foto');
+  }catch(err){
+    toast('No se pudo leer el código. Acerca el celular hasta que el código ocupe casi todo el ancho, con buena luz y enfocado, o escribe el código.\n(Detalle: ' + err.message + ')', 'error');
+    pitido(false);
+  }
+});
+
+async function terminar(){
+  if (!confirm('¿Terminaste de contar todo el kiosko?\nControl de Inventarios verá el conteo como terminado.')) return;
+  try{
+    await llamar('terminarConteo', S.pin, S.inv.id);
+    S.inv.estado = 'CONTEO TERMINADO'; pintarSub();
+    toast('Conteo marcado como terminado');
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+/* ───────── Control de Inventarios ───────── */
+function tab(id){
+  ['tInvs','tCargar','tRep'].forEach(t => $(t).classList.toggle('oculto', t !== id));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('activo', b.dataset.tab === id || (id === 'tRep' && b.dataset.tab === 'tInvs')));
+  if (id !== 'tRep'){ S.repId = null; clearInterval(S.timer); }
+  if (id === 'tInvs') cargarLista();
+}
+
+function chip(estado){
+  const cls = { 'PENDIENTE':'', 'EN CURSO':'e-Sobrante', 'CONTEO TERMINADO':'e-OK', 'CERRADO':'' }[estado] || '';
+  return `<span class="chip ${cls}">${esc(estado.charAt(0) + estado.slice(1).toLowerCase())}</span>`;
+}
+
+async function cargarLista(){
+  try{
+    const filas = await llamar('listarInventarios', S.pin);
+    if (!filas.length){
+      $('listaInvs').innerHTML = `<div class="vacio"><p>Todavía no hay inventarios.</p><button class="primario" onclick="tab('tCargar')">Cargar el primero</button></div>`;
+      return;
+    }
+    $('listaInvs').innerHTML = `<div class="tabla-wrap"><table>
+      <tr><th>Tienda</th><th>Estado</th><th>Avance</th><th class="n">Unidades contadas</th><th>Última lectura</th><th>ID</th><th></th></tr>
+      ${filas.map(f => {
+        const pct = f.productos ? Math.round(f.productosContados * 100 / f.productos) : 0;
+        return `<tr>
+          <td><b>${esc(f.tienda)}</b></td><td>${chip(f.estado)}</td>
+          <td><span class="avance"><i style="width:${pct}%"></i></span>${f.productosContados} de ${f.productos}</td>
+          <td class="n">${num(f.unidadesContadas)} / ${num(f.unidades)}</td>
+          <td>${esc(f.ultima || 'Sin lecturas')}</td><td class="nota">${esc(f.id)}</td>
+          <td><button onclick="verReporte('${esc(f.id)}')">Ver reporte</button></td></tr>`;
+      }).join('')}</table></div>`;
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+$('txtInv').addEventListener('input', () => {
+  const lineas = $('txtInv').value.split(/\r?\n/).filter(l => l.trim()).length;
+  $('prevInv').textContent = lineas ? `${lineas} líneas pegadas (incluye el encabezado si lo copiaste).` : '';
+});
+
+async function cargarInv(){
+  const tienda = $('selTienda').value, texto = $('txtInv').value;
+  if (!texto.trim()){ toast('Pega primero las filas del inventario.', 'error'); return; }
+  $('btnCargar').disabled = true;
+  try{
+    const r = await llamar('cargarInventario', S.pin, tienda, texto);
+    $('txtInv').value = '';
+    toast(`Inventario ${r.id} cargado: ${r.productos} productos, ${num(r.unidades)} unidades.`);
+    if (r.avisos && r.avisos.length){
+      $('prevInv').textContent = `Se cargó, pero revisa esto (${r.avisos.length}):\n` + r.avisos.slice(0, 10).join('\n') +
+        (r.avisos.length > 10 ? `\n…y ${r.avisos.length - 10} más.` : '');
+    } else { $('prevInv').textContent = ''; tab('tInvs'); }
+  }catch(e){ toast(e.message, 'error'); }
+  finally{ $('btnCargar').disabled = false; }
+}
+
+// Lee el valor real de cada celda, así los códigos largos no llegan en notación científica
+$('archivoInv').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try{
+    const wb = XLSX.read(await f.arrayBuffer(), { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+    $('txtInv').value = filas
+      .filter(r => r.some(v => String(v).trim() !== ''))
+      .map(r => r.slice(0, 4).map(v => String(v).replace(/[\t\r\n]+/g, ' ').trim()).join('\t'))
+      .join('\n');
+    $('txtInv').dispatchEvent(new Event('input'));
+    toast(`Archivo leído: ${f.name}. Revisa y pulsa Cargar inventario.`);
+  }catch(err){ toast('No se pudo leer el archivo. Revisa que sea un Excel válido.', 'error'); }
+});
+
+async function verReporte(id){
+  S.repId = id; S.rep = null;
+  $('lnkHoja').classList.add('oculto');
+  $('repTitulo').textContent = 'Cargando…'; $('repCifras').innerHTML = ''; $('tablaRep').innerHTML = '';
+  tab('tRep'); S.repId = id;
+  await refrescarReporte();
+  clearInterval(S.timer);
+  S.timer = setInterval(() => {
+    if (S.repId && !document.hidden && S.rep && S.rep.inv.estado !== 'CERRADO') refrescarReporte(true);
+  }, 60000);
+}
+
+async function refrescarReporte(silencioso){
+  try{
+    const r = await llamar('reporte', S.pin, S.repId);
+    S.rep = r;
+    const v = r.inv, L = r.lineas;
+    const contados = L.filter(l => l.contado > 0).length;
+    const uniCont = L.reduce((s,l) => s + l.contado, 0) + r.extras.reduce((s,e) => s + e.contado, 0);
+    const falt = L.filter(l => l.estado === 'Faltante'), sobr = L.filter(l => l.estado === 'Sobrante'), noc = L.filter(l => l.estado === 'No contado');
+    const neta = L.reduce((s,l) => s + l.dif, 0) + r.extras.reduce((s,e) => s + e.contado, 0);
+
+    $('repTitulo').textContent = v.tienda;
+    $('repSub').innerHTML = `${esc(v.id)}. ${chip(v.estado)}<br>Cargado ${esc(v.creado)}` +
+      (r.primera ? `. Primera lectura ${esc(r.primera)}, última ${esc(r.ultima)}` : '. Aún sin lecturas') +
+      (v.finTienda ? `. La tienda terminó el ${esc(v.finTienda)}` : '') +
+      (v.cierre ? `. Cerrado el ${esc(v.cierre)}` : '') + '.';
+    $('repCifras').innerHTML = [
+      [`${contados} / ${L.length}`, 'productos contados'],
+      [`${num(uniCont)} / ${num(v.unidades)}`, 'unidades contadas / sistema'],
+      [num(noc.length), 'productos sin contar'],
+      [`${falt.length}`, `faltantes (${num(falt.reduce((s,l)=>s-l.dif,0))} u.)`],
+      [`${sobr.length}`, `sobrantes (${num(sobr.reduce((s,l)=>s+l.dif,0))} u.)`],
+      [num(r.extras.length), 'códigos fuera del sistema'],
+      [(neta > 0 ? '+' : '') + num(neta), 'diferencia neta en unidades']
+    ].map(c => `<div><b>${c[0]}</b><span>${c[1]}</span></div>`).join('');
+
+    $('btnCerrar').classList.toggle('oculto', v.estado === 'CERRADO');
+    pintarTabla();
+
+    $('repExtras').innerHTML = r.extras.length ? `<h2>Códigos que no están en el sistema</h2><div class="tabla-wrap"><table>
+      <tr><th>Código leído</th><th class="n">Lecturas</th><th class="n">Unidades</th></tr>
+      ${r.extras.map(e => `<tr><td>${esc(e.leido)}</td><td class="n">${e.lecturas}</td><td class="n">${num(e.contado)}</td></tr>`).join('')}</table></div>` : '';
+
+    $('repResp').innerHTML = r.responsables.length ? `<h2>Quién contó</h2><div class="tabla-wrap"><table>
+      <tr><th>Responsable</th><th class="n">Lecturas</th><th class="n">Unidades</th></tr>
+      ${r.responsables.map(p => `<tr><td>${esc(p.nombre)}</td><td class="n">${p.lecturas}</td><td class="n">${num(p.unidades)}</td></tr>`).join('')}</table></div>` : '';
+
+    if (silencioso) toast('Reporte actualizado');
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+function pintarTabla(){
+  if (!S.rep) return;
+  const f = $('fEstado').value, q = $('fBuscar').value.trim().toLowerCase();
+  const filas = S.rep.lineas.filter(l =>
+    (f === 'todos' || (f === 'dif' ? l.estado !== 'OK' : l.estado === f)) &&
+    (!q || (l.codigo + ' ' + l.barras + ' ' + l.desc).toLowerCase().includes(q)));
+  $('tablaRep').innerHTML = `<tr><th>Código</th><th>Código de barras</th><th>Descripción</th><th class="n">Sistema</th><th class="n">Contado</th><th class="n">Diferencia</th><th>Estado</th></tr>` +
+    (filas.length ? filas.map(l => `<tr><td>${esc(l.codigo)}</td><td>${esc(l.barras)}</td><td class="desc">${esc(l.desc)}</td>
+      <td class="n">${num(l.sistema)}</td><td class="n">${num(l.contado)}</td>
+      <td class="n e-${esc(l.estado.split(' ')[0])}"><b>${l.dif > 0 ? '+' : ''}${num(l.dif)}</b></td>
+      <td><span class="chip e-${esc(l.estado.split(' ')[0])}">${esc(l.estado)}</span></td></tr>`).join('')
+    : `<tr><td colspan="7" class="nota">Ningún producto coincide con este filtro.</td></tr>`);
+}
+
+async function exportar(){
+  $('btnExportar').disabled = true;
+  try{
+    const url = await llamar('exportarReporte', S.pin, S.repId);
+    $('lnkHoja').href = url; $('lnkHoja').classList.remove('oculto');
+    toast('Hoja de reporte creada');
+  }catch(e){ toast(e.message, 'error'); }
+  finally{ $('btnExportar').disabled = false; }
+}
+
+async function cerrar(){
+  const r = S.rep;
+  const aviso = r && r.inv.estado !== 'CONTEO TERMINADO' ? '\nLa tienda todavía no marcó el conteo como terminado.' : '';
+  if (!confirm(`¿Cerrar el inventario de ${r ? r.inv.tienda : ''}?\nLa tienda ya no podrá registrar ni quitar productos.${aviso}`)) return;
+  try{ await llamar('cerrarInventario', S.pin, S.repId); toast('Inventario cerrado'); refrescarReporte(); }
+  catch(e){ toast(e.message, 'error'); }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (S.modo !== 'camara' || !S.inv) return;
+  if (document.hidden) apagarCamara();
+  else encenderCamara();
+});
+
+/* Arranque */
+$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('nombre').focus(); });
+$('nombre').addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+const ses = leerSesion();
+if (ses && ses.pin) entrar(ses);
+</script>
+</body>
+</html>
